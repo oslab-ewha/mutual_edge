@@ -1,0 +1,54 @@
+# max_generations n_populations cutoff penalty
+*genetic
+100000 100 1.1 1.5
+
+# wcet_min wcet_max mem_total util_cpu util_target n_tasks task_size_min task_size_max input_size_min input_size_max output_size_min output_size_max
+*gentask
+100 1000 2000 0.8 0.9 100 4000 6000 800 4000 800 2000
+
+# uplink_min uplink_max downlink_min downlink_max n_networks
+*gennetwork
+120 120 1200 1200 100
+
+# intercept_out_min intercept_out_max intercept_in_min intercept_in_max n_net_commanders
+*gennetcommander
+1 4 2 5 100
+
+# wcet_sacle power_active power_idle
+*cpufreq
+1    100    1
+0.5  25   0.25
+0.25 6.25 0.0625
+0.125 1.5625 0.015625
+
+# type max_capacity wcet_scale power_active power_idle
+*mem
+dram  1000 1    0.01   0.009
+nvram 1000 0.8  0.01   0.0009
+
+# type computation_power power_active power_idle max_capacity offloading_limit
+*cloud
+mec  2   400   100   100000   1.0
+
+# offloading_ratio 
+*offloadingratio
+0
+1
+
+# uplink_data_rate downlink_data_rate
+*network
+80 800
+80 800
+80 800
+
+# intercept_out intercept_in
+*netcommander
+2 3
+4 3
+1 4
+
+# wcet period memreq mem_active_ratio
+*task
+10 30   200 0.1
+10 20   20  0.05
+ 1 20   20  0.1

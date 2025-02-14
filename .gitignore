@@ -1,0 +1,4 @@
+/build
+/nitro_test/build
+*.o
+*~
