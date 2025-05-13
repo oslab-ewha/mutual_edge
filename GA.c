@@ -16,6 +16,56 @@ LIST_HEAD(genes_by_score);
 
 gene_t	*genes;
 
+#define P_ELEC 0.08            		// (W->USD) Electricity rate (USD/kWh)
+#define C 1.8e-9               		// CPU switching capacitance (F)
+const double V[] = {0.5, 0.65, 0.8, 0.95, 1.1};        // Voltage (V)
+const double F[] = {0.4e9, 0.7e9, 1.2e9, 1.6e9, 2.2e9}; // Frequency (Hz)
+const double S[] = {5.5, 3.1, 1.8, 1.375, 1.0};
+#define P_BASELINE 3.5        		// Baseline system power (W)
+#define K_DYN 2e-3            		// Dynamic memory power coefficient (W/MB)
+#define K_STAT 0.5e-3         		// Static memory power coefficient (W/MB)
+#define HW_COST 2000.0        		// MEC device hardware cost (USD)
+#define DEP_PERIOD_SEC 94608000.0  	// Depreciation period: 3 years = 3*365*24*60*60 (sec)
+#define P_MEC 0.06            		// MEC server power (kW) (60W = 0.06kW)
+#define ALL_Period 2592000.0        // Total simulation period: 1 month (30 days)
+
+extern task_t tasks[];
+
+// Cost calculation for local execution
+double compute_local_cost_per_sec(const task_t *task, int cpufreq_idx) {
+    double wcet = task->wcet / 1000;  		// Convert WCET from ms to seconds
+    double period = task->period / 1000;  	// Convert period from ms to seconds
+    double v = V[cpufreq_idx];  // Voltage
+    double f = F[cpufreq_idx];  // Frequency
+    double s = S[cpufreq_idx];  // Scaling factor for WCET
+
+    // CPU
+    double e_cpu = C * v * v * f * wcet * s / period;
+
+    // Memory
+    double size_mb = task->memreq / 1000; // KB -> MB
+    double gamma = task->mem_active_ratio;
+    double e_mem = size_mb * (gamma * K_DYN + K_STAT);
+
+    double total_energy = (e_cpu + e_mem) *  ALL_Period; // Wh
+    return (total_energy / 3600000.0) * P_ELEC;       // Cpu_Memory_Cost (USD)
+}
+
+// Cost calculation for offloading execution
+double compute_offloading_cost_per_sec(const task_t *task, const cloud_t *cloud, double uplink, double downlink) {
+    double period = task->period / 1000;  // Convert task period to seconds
+
+    double t_upload = task->input_size * 1024 * 8.0 / (uplink * 1e6);    	// Upload time (sec) 1KB = 1024 byte = 1024 * 8 bit -> sec
+    double t_download = task->output_size * 1024 * 8.0 / (downlink * 1e6);	// Download time (sec)
+    double t_net = t_upload + t_download;
+
+    double e_net = 1.2 * t_net * (ALL_Period / period);						// Network energy (1.2W)
+    double cost_energy = (e_net / 3600000.0) * P_ELEC; 						// Network cost (USD)
+
+    return cost_energy;
+}
+
+
 #if 0
 static void
 show_gene(gene_t *gene)
@@ -215,34 +265,74 @@ check_utilpower(gene_t *gene)
 	int	i, violate_period = 0, num_offloading = 0; 
 	// int violate_offloading = 0; 
 
+	double total_cost = 0;                 
+
+	double used_memory = 0.0; 
+	double total_memory = 45000.0;   // Total system memory: 90000.0 for Private, 45000.0 for Mutual/Hybrid/Public
+
+	gene->cost_cpu_memory = 0;
+	gene->cost_network = 0;
+	gene->cost_base = 0;
+	gene->cost_hw = 0;
+	gene->cost_rent = 0;
+
 	for (i = 0; i < n_tasks; i++) {
 		double	task_util, task_power_cpu, task_power_mem, task_power_net_com, task_deadline;
 		
-		get_task_utilpower(i, gene->taskattrs_mem.attrs[i], gene->taskattrs_cloud.attrs[i], gene->taskattrs_cpufreq.attrs[i], gene->taskattrs_offloadingratio.attrs[i],
-				   &task_util, &task_power_cpu, &task_power_mem, &task_power_net_com, &task_deadline); //gyuri
+		get_task_utilpower(i, gene->taskattrs_mem.attrs[i], gene->taskattrs_cloud.attrs[i], gene->taskattrs_cpufreq.attrs[i], gene->taskattrs_offloadingratio.attrs[i], &task_util, &task_power_cpu, &task_power_mem, &task_power_net_com, &task_deadline); //gyuri
 		util_new += task_util;
 		power_new_sum_cpu += task_power_cpu;
 		power_new_sum_mem += task_power_mem;
 		power_new_sum_net_com += task_power_net_com;
+
 		if(task_deadline > 1.0) 
 			violate_period ++;
-		if((unsigned)gene->taskattrs_offloadingratio.attrs[i] != 0)
+		
+		if((unsigned)gene->taskattrs_offloadingratio.attrs[i] != 0){ // offloading
+			const cloud_t *cloud = &clouds[gene->taskattrs_cloud.attrs[i]];
+			double c = compute_offloading_cost_per_sec(&tasks[i], cloud, 30.0, 120.0);
+			total_cost += c;
+			gene->cost_network += c;
+
 			num_offloading++;
+		} else { // local
+			used_memory += tasks[i].memreq / 1000.0;  
+            double d = compute_local_cost_per_sec(&tasks[i], gene->taskattrs_cpufreq.attrs[i]);
+			total_cost += d;
+			gene->cost_cpu_memory += d;
+        	}
 	}
-	/*
-	for(i = 0; i < n_clouds; i++) 
-		{
-			if((double)num_offloading > clouds[i].offloading_limit * n_tasks)
-			{
-				violate_offloading = 1;
-				break;
-			}
-	}
+
+	/* 
+	Lines 311 ~ 329 should be enabled (uncommented) for Mutual, Private, and Hybrid modes
+	Keep them commented for Public mode
 	*/
+
+	// Add static power consumption for unused memory
+	double unused_memory = total_memory - used_memory;
+	if (unused_memory > 0.0) {
+		double e_static_unused = unused_memory * K_STAT * ALL_Period;  // (W·s)
+		double cost_static_unused = (e_static_unused / 3600000.0) * P_ELEC; // (USD)
+		total_cost += cost_static_unused;
+    	gene->cost_cpu_memory += cost_static_unused;
+	}
+
+	// Baseline_Cost
+    double base_energy = P_BASELINE * ALL_Period;
+    double base_cost = (base_energy / 3600000.0) * P_ELEC;
+    total_cost += base_cost;
+	gene->cost_base = base_cost;
+
+	// Depreciation cost of MEC hardware
+    double private_depreciation_cost = (HW_COST / DEP_PERIOD_SEC) * ALL_Period;
+    total_cost += private_depreciation_cost;
+	gene->cost_hw = private_depreciation_cost;
+
 	power_new = power_new_sum_cpu + power_new_sum_mem + power_new_sum_net_com; //ADDMEM
 	gene->cpu_power = power_new_sum_cpu;
 	gene->mem_power = power_new_sum_mem;
 	gene->power_netcom = power_new_sum_net_com;
+	
 	// power_new = power_new_sum_cpu + power_new_sum_net_com; 
 	gene->period_violation = violate_period;
 	if (util_new < 1.0 && violate_period == 0) { 
@@ -251,11 +341,12 @@ check_utilpower(gene_t *gene)
 		gene->cpu_power += power_new_idle;
 	}
 	gene->util = util_new;
+
 	if (util_new <= cutoff) {
 		gene->power = power_new;
-		gene->score = power_new;
+		gene->score = total_cost; 
 		if (util_new >= 1.0 || violate_period > 0) 
-			gene->score += power_new * (util_new - 1.0) * penalty;
+			gene->score += total_cost * (util_new - 1.0) * penalty;  
 		return TRUE;
 	}
 	return FALSE;
@@ -269,7 +360,11 @@ init_gene(gene_t *gene)
 	assign_taskattrs(&gene->taskattrs_mem, n_mems);
 	assign_taskattrs(&gene->taskattrs_cpufreq, n_cpufreqs);
 	assign_taskattrs(&gene->taskattrs_cloud, n_clouds); 
-	assign_taskattrs(&gene->taskattrs_offloadingratio, n_offloadingratios); 
+	
+	for (int i = 0; i < n_tasks; i++) {
+		gene->taskattrs_offloadingratio.attrs[i] = 0;
+	}
+	setup_taskattrs(&gene->taskattrs_offloadingratio);
 
 	for (i = 0; i < MAX_TRY; i++) {
 		INIT_LIST_HEAD(&gene->list_util);

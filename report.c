@@ -68,40 +68,53 @@ static void
 save_task_infos(void)
 {
 	gene_t	*gene;
-	int	i, n_offloading = 0, cpufreq0 = 0, cpufreq1 = 0, cpufreq2 = 0, cpufreq3 = 0; 
+	int	i, n_offloading = 0, cpufreq0 = 0, cpufreq1 = 0, cpufreq2 = 0, cpufreq3 = 0, cpufreq4 = 0; 
 
 	fp = fopen("task.txt", "w");
 	if (fp == NULL){
 		FATAL(2, "cannot open task.txt");
 	}
-
+	
 	fprintf(fp, "# mem_idx cpufreq_idx cloud_idx offloadingratio_idx\n"); 
-	gene = list_entry(genes_by_power.next, gene_t, list_power);
+	gene = list_entry(genes_by_score.next, gene_t, list_score);
 	if (gene->util > 2.0) {
 		FATAL(2, "over-utilized gene: %lf", gene->util);
 	}
 	for (i = 0; i < n_tasks; i++) {
 		fprintf(fp, "%u %u %u %u\n", (unsigned)gene->taskattrs_mem.attrs[i], (unsigned)gene->taskattrs_cpufreq.attrs[i],
 		(unsigned)gene->taskattrs_cloud.attrs[i], (unsigned)gene->taskattrs_offloadingratio.attrs[i]); 
-		if((unsigned)gene->taskattrs_offloadingratio.attrs[i] != 0)
+		if((unsigned)gene->taskattrs_offloadingratio.attrs[i] != 0){
 			n_offloading++;
-		if((unsigned)gene->taskattrs_cpufreq.attrs[i] == 0) 
-			cpufreq0++;
-		else if ((unsigned)gene->taskattrs_cpufreq.attrs[i] == 1)
-			cpufreq1++;
-		else if ((unsigned)gene->taskattrs_cpufreq.attrs[i] == 2)
-			cpufreq2++;
-		else
-			cpufreq3++;
+		}else{
+			if((unsigned)gene->taskattrs_cpufreq.attrs[i] == 0) 
+				cpufreq0++;
+			else if ((unsigned)gene->taskattrs_cpufreq.attrs[i] == 1)
+				cpufreq1++;
+			else if ((unsigned)gene->taskattrs_cpufreq.attrs[i] == 2)
+				cpufreq2++;
+			else if ((unsigned)gene->taskattrs_cpufreq.attrs[i] == 3)
+                        	cpufreq3++;
+			else
+				cpufreq4++;
+		}	
 	}
 	fclose(fp);
-	
+
+	// Uncomment for Private mode; comment out for Mutual, Hybrid, or Public modes.
+	// gene->util = gene->util / 2.0;
+
 	printf("power: %.6lf util: %.6lf\n", gene->power, gene->util);
 	printf("cpu power: %.6lf memory power: %.6lf network power: %.6lf\n", gene->cpu_power, gene->mem_power, gene->power_netcom); 
 	printf("offloading ratio: %.6lf\n", n_offloading/(double)n_tasks); 
-	printf("cpu frequency: \n1\t0.5\t0.25\t0.125 \n"); 
-	printf("%d\t%d\t%d\t%d \n", cpufreq0, cpufreq1, cpufreq2, cpufreq3); 
-	printf("period violation: %u\n", gene->period_violation); 
+	printf("cpu frequency: \n1\t0.564\t0.327\t0.25\t0.182 \n"); 
+	printf("%d\t%d\t%d\t%d\t%d \n", cpufreq0, cpufreq1, cpufreq2, cpufreq3, cpufreq4); 
+	printf("period violation: %u\n", gene->period_violation);
+	printf("score (cost): %.6lf\n", gene->score);
+	printf("cpu_memory elec cost: %.6lf\n", gene->cost_cpu_memory);
+	printf("network elec cost: %.6lf\n", gene->cost_network);
+	printf("base elec cost: %.6lf\n", gene->cost_base);
+	printf("hw base cost: %.6lf\n", gene->cost_hw);
+	printf("mec rental cost: %.6lf\n", gene->cost_rent);		
 }
 
 void

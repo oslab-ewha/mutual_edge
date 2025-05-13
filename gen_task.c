@@ -13,26 +13,9 @@ static unsigned	memreq_total;
 
 static void gen_offloading_bool(unsigned *offloading_bool)
 {
-	int min_local = (int)((double)n_tasks_target/100 * 50);
-	int locallist[min_local];
-	
-	for (int i = 0; i < min_local; i++)
-	{
-		locallist[i] = abs(rand()) % n_tasks_target;
-		for (int j = 0; j < i; j++)
-		{
-			if (locallist[j] == locallist[i])
-			{
-				i--;
-				break;
-			}
-		}
-	}
-
-	for (int i = 0; i < min_local; i++)
-	{
-		offloading_bool[locallist[i]] = 1;
-	}
+	for (int i = 0; i < n_tasks_target; i++) {
+		offloading_bool[i] = 0;  // local_only 0, offloading_only 1
+    	}
 }
 
 static void

@@ -26,21 +26,24 @@ get_task_utilpower(unsigned no_task, unsigned char mem_type, unsigned char cloud
 	double	wcet_scaled;
 	double	transtime; 
 	double  netcomtime; 
-	wcet_scaled = task->wcet * wcet_scaled_cpu * wcet_scaled_mem; // ADDMEM
-	// wcet_scaled = task->wcet * wcet_scaled_cpu; 
+	wcet_scaled = task->wcet * wcet_scaled_cpu * wcet_scaled_mem;
 	
 	if (wcet_scaled >= task->period)
 		FATAL(3, "task[%u]: scaled wcet exceeds task period: %lf > %u", task->no, wcet_scaled, task->period);
 
+    double real_offloading = 0.0; // local_only 0.0, offloading_only 1.0
+
 	transtime = (task->task_size + task->input_size)/(double)network->uplink + task->output_size/(double)network->downlink;  
 	netcomtime = net_commander->intercept_out + net_commander->intercept_in;
-	*putil = (wcet_scaled  * (1.0 - offloadingratios[offloadingratio]) + (wcet_scaled_cpu * netcomtime) * offloadingratios[offloadingratio]) / task->period; 
-	*pdeadline = (wcet_scaled_cloud * task->wcet + wcet_scaled_cpu * netcomtime + transtime) / (task->period) * offloadingratios[offloadingratio]; //gyuri 
+	*putil = (wcet_scaled  * (1.0 - real_offloading) + (wcet_scaled_cpu * netcomtime) * real_offloading) / task->period; 
+	*pdeadline = (wcet_scaled_cloud * task->wcet + wcet_scaled_cpu * netcomtime + transtime) / task->period * real_offloading; 
 	cpu_power_unit = (cpufreq->power_active * wcet_scaled_cpu + cpufreq->power_idle * wcet_scaled_mem) / (wcet_scaled_cpu + wcet_scaled_mem);
-	*ppower_cpu = cpu_power_unit * (wcet_scaled / task->period) * (1 - offloadingratios[offloadingratio]) + cpu_power_unit * (netcomtime / task->period) * (offloadingratios[offloadingratio]); 
-	*ppower_net_com = net_com_power_unit * ((transtime + netcomtime) / task->period) * offloadingratios[offloadingratio];  
-	*ppower_mem = (task->memreq * (task->mem_active_ratio * mem->power_active + (1 - task->mem_active_ratio) * mem->power_idle) * wcet_scaled / task->period +
-		task->memreq * mem->power_idle * (1 - wcet_scaled / task->period));
+	*ppower_cpu = cpu_power_unit * (wcet_scaled / task->period) * (1 - real_offloading) + cpu_power_unit * (netcomtime / task->period) * (real_offloading); 
+	*ppower_net_com = net_com_power_unit * ((transtime + netcomtime) / task->period) * real_offloading;  
+	if (real_offloading == 1.0)
+    		*ppower_mem = 0.0;
+	else
+	*ppower_mem = (task->memreq * (task->mem_active_ratio * mem->power_active + (1 - task->mem_active_ratio) * mem->power_idle) * wcet_scaled / task->period + task->memreq * mem->power_idle * (1 - wcet_scaled / task->period));
 }
 
 unsigned

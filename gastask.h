@@ -23,7 +23,7 @@ typedef struct {
 	taskattrs_t taskattrs_cloud; 
 	taskattrs_t	taskattrs_cpufreq;
 	taskattrs_t	taskattrs_offloadingratio; 
-	double		util, power, score, mem_power, cpu_power, power_netcom; 
+	double		util, power, score, mem_power, cpu_power, power_netcom, cost_cpu_memory, cost_network, cost_base, cost_hw, cost_rent; 
 	unsigned 	period_violation; 
 	struct list_head	list_util;
 	struct list_head	list_power;
@@ -81,6 +81,8 @@ extern unsigned n_net_commanders;
 
 extern struct list_head	genes_by_util;
 extern struct list_head	genes_by_power;
+extern struct list_head genes_by_score; 
+ 
 extern gene_t	*genes;
 extern cpufreq_t	cpufreqs[];
 extern double	offloadingratios[]; 
