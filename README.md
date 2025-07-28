@@ -30,6 +30,62 @@ $ make
 ```
 - scheduling information is generated in <code>task.txt</code>, which can be used as an input to simrts.
 
+## Experimental Configuration
+This section describes the configuration parameters used for evaluating different offloading strategies in the Mutual Edge scheduling framework.
+- Experimental Configuration (Mutual / Hybrid / Private / Public Strategies)
+  
+### [1] Mutual / Hybrid  - Local
+
+**Workload range:** `0.05 → 1.0` (step = `0.05`)
+
+| File | Line | Parameter | Change |
+|------|------|------------|--------|
+| `run_extend.sh` | 52 | `*mem max_capacity` | `45000000` |
+| `run_extend.sh` | 60 | `*offloadingratio` | `0` |
+| `gen_task.c` | 17 | `offloading_bool[i]` | `0` |
+| `task.c` | 34 | `double real_offloading` | `0.0` |
+| `report.c` | 104 | `// gene->util = gene->util / 2.0;` | (keep commented out) |
+| `GA.c` | 271 | `double total_memory` | `45000.0` |
+| `GA.c` | 323–324 | `total_cost += base_cost;`<br>`gene->cost_base = base_cost;` |  |
+| `GA.c` | 327 | `private_depreciation_cost` | `(HW_COST / DEP_PERIOD_SEC) * ALL_Period` |
+
+---
+
+### [2] Private
+
+**Workload range:** `0.05 → 1.5` (step = `0.05`)
+
+| File | Line | Parameter | Change |
+|------|------|------------|--------|
+| `run_extend.sh` | 52 | `*mem max_capacity` | `90000000` |
+| `run_extend.sh` | 60 | `*offloadingratio` | `0` |
+| `gen_task.c` | 17 | `offloading_bool[i]` | `0` |
+| `task.c` | 34 | `double real_offloading` | `0.0` |
+| `report.c` | 104 | `gene->util = gene->util / 2.0;` | (enable division) |
+| `GA.c` | 271 | `double total_memory` | `90000.0` |
+| `GA.c` | 323–324 | `total_cost += 2 * base_cost;`<br>`gene->cost_base = 2 * base_cost;` |  |
+| `GA.c` | 327 | `private_depreciation_cost` | `((2 * HW_COST) / DEP_PERIOD_SEC) * ALL_Period` |
+
+---
+
+### [3] Public
+
+**Workload range:** `0.05 → 1.5` (step = `0.05`)
+
+| File | Line | Parameter | Change |
+|------|------|------------|--------|
+| `run_extend.sh` | 52 | `*mem max_capacity` | `45000000` |
+| `run_extend.sh` | 60 | `*offloadingratio` | `1` |
+| `gen_task.c` | 17 | `offloading_bool[i]` | `1` |
+| `task.c` | 34 | `double real_offloading` | `1.0` |
+| `report.c` | 104 | `// gene->util = gene->util / 2.0;` | (keep commented out) |
+| `GA.c` | 271 | `double total_memory` |  `45000.0` |
+| `GA.c` | 311–329 |  | Comment out entire block (`/* ... */`) |
+
+---
+
+Using these strategy configurations, the system reproduces the rental and utilization scenarios presented in the paper by tuning resource and workload parameters.
+
 ## IIoT Application Offloading with Intel SGX and Remote Attestation
 
 ### Secure Offloading Framework for Private Industrial Edge Environments
