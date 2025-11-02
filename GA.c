@@ -1,4 +1,5 @@
 #include "gastask.h"
+#include <time.h>
 
 #define MAX_TRY	10000
 
@@ -28,6 +29,7 @@ const double S[] = {5.5, 3.1, 1.8, 1.375, 1.0};
 #define DEP_PERIOD_SEC 94608000.0  	// Depreciation period: 3 years = 3*365*24*60*60 (sec)
 #define P_MEC 0.06            		// MEC server power (kW) (60W = 0.06kW)
 #define ALL_Period 2592000.0        // Total simulation period: 1 month (30 days)
+#define MU 1.0    					// penalty weight μ
 
 extern task_t tasks[];
 
@@ -276,6 +278,9 @@ check_utilpower(gene_t *gene)
 	gene->cost_hw = 0;
 	gene->cost_rent = 0;
 
+	double local_overutil = 0.0;
+	double remote_delay = 0.0;
+
 	for (i = 0; i < n_tasks; i++) {
 		double	task_util, task_power_cpu, task_power_mem, task_power_net_com, task_deadline;
 		
@@ -285,9 +290,13 @@ check_utilpower(gene_t *gene)
 		power_new_sum_mem += task_power_mem;
 		power_new_sum_net_com += task_power_net_com;
 
-		if(task_deadline > 1.0) 
+		if(task_deadline > 1.0) {
 			violate_period ++;
-		
+			if ((unsigned)gene->taskattrs_offloadingratio.attrs[i] != 0) { 
+				remote_delay += (task_deadline - 1.0);
+			}
+		}
+
 		if((unsigned)gene->taskattrs_offloadingratio.attrs[i] != 0){ // offloading
 			const cloud_t *cloud = &clouds[gene->taskattrs_cloud.attrs[i]];
 			double c = compute_offloading_cost_per_sec(&tasks[i], cloud, 30.0, 120.0);
@@ -340,13 +349,24 @@ check_utilpower(gene_t *gene)
 		power_new += power_new_idle;
 		gene->cpu_power += power_new_idle;
 	}
+
+	if (util_new > 1.0)
+		local_overutil = util_new - 1.0;
+	else
+		local_overutil = 0.0;
+
+	gene->constraint_penalty = local_overutil + MU * remote_delay;
+	double eps = 1.0;   // epsilon
+	gene->fitness = 1.0 / (total_cost + eps * gene->constraint_penalty);
+
 	gene->util = util_new;
 
 	if (util_new <= cutoff) {
 		gene->power = power_new;
+		gene->total_cost = total_cost;
 		gene->score = total_cost; 
 		if (util_new >= 1.0 || violate_period > 0) 
-			gene->score += total_cost * (util_new - 1.0) * penalty;  
+			gene->score += total_cost * (util_new - 1.0) * penalty; 
 		return TRUE;
 	}
 	return FALSE;
@@ -500,6 +520,11 @@ crossover(void)
 void
 run_GA(void)
 {
+	clock_t start_time, end_time;
+    double elapsed_sec;
+
+    start_time = clock();
+
 	unsigned	gen = 1;
 	init_report();
 	init_populations();
@@ -507,8 +532,14 @@ run_GA(void)
 	add_report(gen);
 	while (gen <= max_gen) {
 		crossover();
-		gen++;
+		gen++;  
 		add_report(gen);
 	}
+
 	close_report();
+
+    end_time = clock();
+    elapsed_sec = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+
+    printf("GA execution time: %.6f seconds\n", elapsed_sec);
 }

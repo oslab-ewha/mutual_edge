@@ -23,7 +23,7 @@ typedef struct {
 	taskattrs_t taskattrs_cloud; 
 	taskattrs_t	taskattrs_cpufreq;
 	taskattrs_t	taskattrs_offloadingratio; 
-	double		util, power, score, mem_power, cpu_power, power_netcom, cost_cpu_memory, cost_network, cost_base, cost_hw, cost_rent; 
+	double		util, power, total_cost, score, mem_power, cpu_power, power_netcom, cost_cpu_memory, cost_network, cost_base, cost_hw, cost_rent, constraint_penalty, fitness; 
 	unsigned 	period_violation; 
 	struct list_head	list_util;
 	struct list_head	list_power;
