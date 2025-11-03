@@ -1,0 +1,39 @@
+Organizations:
+  - &OrdererOrg
+    Name: OrdererMSP
+    ID: OrdererMSP
+    MSPDir: crypto-config/ordererOrganizations/example.com/msp
+
+  - &Org1
+    Name: Org1MSP
+    ID: Org1MSP
+    MSPDir: crypto-config/peerOrganizations/org1.example.com/msp
+    AnchorPeers:
+      - Host: peer0.org1.example.com
+        Port: 7051
+
+Orderer: 
+  OrdererType: solo
+  Organizations:
+    - *OrdererOrg
+
+Channel: 
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+
+Profiles:
+  OneOrgGenesis:
+    Orderer:
+      <<: *Orderer
+    Consortiums:
+      SampleConsortium:
+        Organizations:
+          - *Org1
+
+  OneOrgChannel:
+    Consortium: SampleConsortium
+    Application:
+      Organizations:
+        - *Org1

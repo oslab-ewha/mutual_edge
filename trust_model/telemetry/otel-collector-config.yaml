@@ -1,0 +1,22 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+      grpc:
+
+processors:
+  batch:
+
+exporters:
+  logging:
+    loglevel: debug
+
+  file:
+    path: /etc/otel-collector/output/usage.log
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging, file]

@@ -1,0 +1,15 @@
+version: "3.7"
+
+services:
+  rekor-server:
+    image: ghcr.io/sigstore/rekor-server:latest
+    container_name: rekor-server
+    ports:
+      - "3000:3000"
+    command:
+      - serve
+      - --rekor_server_address=0.0.0.0:3000
+    volumes:
+      - ./data:/var/rekor
+    environment:
+      - TUF_ROOT=/var/rekor
